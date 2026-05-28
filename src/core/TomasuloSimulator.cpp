@@ -218,7 +218,6 @@ void TomasuloSimulator::issue() {
             else freeRS->Qk = 0;
             freeRS->A = inst.immediate;
         }
-        // Constrói a expressão de valor com base no RAT ANTES de atualizar o produtor
         auto& robEntry = rob.back();
         std::stringstream vl;
         if (inst.op == LW) {
