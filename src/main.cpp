@@ -95,8 +95,18 @@ void exibirMenu(int& rsAdd, int& rsMul, int& rsLs, int& aluAdd, int& aluMul, int
     Logger::log(Logger::INFO, "CDB Width: " + std::to_string(cdbWidth));
     Logger::log(Logger::INFO, "Lendo instrucoes de: " + filename);
     Logger::log(Logger::INFO, "========================================================");
-    Logger::log(Logger::INFO,"Pressione ENTER para executar.");
+    Logger::log(Logger::INFO,"Pressione ENTER para continuar.");
     std::cin.get();
+}
+
+void preSimMenu(TomasuloSimulator& sim) {
+    Logger::log(Logger::INFO, "========================================================");
+    Logger::log(Logger::INFO, "   MENU DE INJECAO DE ESTADO (PRE-SIMULACAO)");
+    Logger::log(Logger::INFO, "========================================================");
+    Logger::log(Logger::INFO, "1. Iniciar Simulacao agora");
+    Logger::log(Logger::INFO, "2. Forcar valor em um Registrador (R0 - R" + std::to_string(sim.getRegistersSize() - 1) + ")");
+    Logger::log(Logger::INFO, "3. Forcar valor na Memoria RAM  (0 - " + std::to_string(sim.getMemorySize() - 1) + ")");
+    Logger::log(Logger::INFO, ">>> Escolha: ", false);
 }
 
 int main() {
@@ -106,6 +116,50 @@ int main() {
         std::string filename = "cenario1.txt";
         exibirMenu(rsAdd, rsMul, rsLs, aluAdd, aluMul, aluLs, cdbWidth, latAdd, latMul, latLs, filename);
         TomasuloSimulator sim(rsAdd, rsMul, rsLs, aluAdd, aluMul, aluLs, cdbWidth, latAdd, latMul, latLs);
+        bool startSimulation = false;
+        while (!startSimulation) {
+            preSimMenu(sim);
+            std::string escolhaStr;
+            std::getline(std::cin, escolhaStr);
+            int escolha = 0;
+            try { escolha = std::stoi(escolhaStr); } catch (...) {}
+            switch (escolha) {
+                case 1:
+                    startSimulation = true;
+                    break;
+                case 2: {
+                    int reg = -1, val = 0;
+                    Logger::log(Logger::INFO, "Qual Registrador (0 a " + std::to_string(sim.getRegistersSize()-1) + ")? ", false);
+                    std::cin >> reg;
+                    Logger::log(Logger::INFO, "Qual o valor? ", false);
+                    std::cin >> val;
+                    std::cin.ignore(10000, '\n');
+                    if (reg >= 0 && reg < 32) {
+                        sim.setRegisterValue(reg, val);
+                    } else {
+                        Logger::log(Logger::ERROR, "Registrador invalido!");
+                    }
+                    break;
+                }
+                case 3: {
+                    int addr = -1, val = 0;
+                    Logger::log(Logger::INFO, "Qual Endereco da RAM (0 a " + std::to_string(sim.getMemorySize() - 1) + ")? ",  false);
+                    std::cin >> addr;
+                    Logger::log(Logger::INFO, "Qual o valor? ", false);
+                    std::cin >> val;
+                    std::cin.ignore(10000, '\n');
+                    if (addr >= 0 && addr < 1024) {
+                        sim.setMemoryValue(addr, val);
+                    } else {
+                        Logger::log(Logger::ERROR, "Endereco invalido!");
+                    }
+                    break;
+                }
+                default:
+                    Logger::log(Logger::WARNING, "Opcao invalida. Digite 1, 2 ou 3.");
+                    break;
+            }
+        }
         sim.run(filename);
     } catch (const TomasuloException& e) {
         Logger::log(Logger::ERROR, e.what());

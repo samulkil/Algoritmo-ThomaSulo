@@ -40,8 +40,12 @@ private:
     void checkFinishCondition();
 public:
     TomasuloSimulator(int rsAdd, int rsMul, int rsLs, int aluAdd, int aluMul, int aluLs, int cdbWidth, int latAdd, int latMul, int latLs);
+    int getRegistersSize();
+    int getMemorySize();
     void printState();
     void run(const std::string& filename);
+    void setRegisterValue(int regIndex, int value);
+    void setMemoryValue(int memAddress, int value);
 };
 
 #endif
