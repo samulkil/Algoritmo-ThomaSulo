@@ -21,7 +21,7 @@ struct ReorderBufferEntry {
     int value;
     bool ready;
     std::string valueLine;
-    int  effectiveAddress;
+    int effectiveAddress;
     bool addressReady;
     ReorderBufferEntry(int t, Instruction i)
         : tag(t), inst(i), state(ISSUE), destination(i.destRegister), value(0), ready(false),

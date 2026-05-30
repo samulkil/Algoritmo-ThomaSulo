@@ -7,23 +7,20 @@
 #include <iostream>
 #include <iomanip>
 #define MEMORY_SIZE 1024
-#define ADD_SUB_CYCLES 1
-#define MUL_DIV_CYCLES 2
-#define LW_SW_CYCLES 2
 
-TomasuloSimulator::TomasuloSimulator(const int rsAdd, const int rsMul, const int rsLs, const int aluAdd, const int aluMul, const int aluLs, const int issue) {
+TomasuloSimulator::TomasuloSimulator(const int rsAdd, const int rsMul, const int rsLs, const int aluAdd, const int aluMul, const int aluLs, const int cdbWidth, const int latAdd, const int latMul, const int latLs) {
     currentCycle = 0;
     isFinished = false;
-    this->issueWidth = issue;
+    this->cdbWidth = cdbWidth;
     memory.reserve(MEMORY_SIZE);
 	fuAluAdd.reserve(aluAdd);
 	fuAluMul.reserve(aluMul);
 	fuAluLS.reserve(aluLs);
     registerFile.reserve(32);
     for (int i = 0; i < 32; i++) registerFile.push_back((rand() % 15) + 1);
-	for (int i = 0; i < aluAdd; i++) fuAluAdd.push_back(FunctionalUnit("ADD" + std::to_string(i+1), ADD_SUB_CYCLES));
-	for (int i = 0; i < aluMul; i++) fuAluMul.push_back(FunctionalUnit("MUL" + std::to_string(i+1), MUL_DIV_CYCLES));
-	for (int i = 0; i < aluLs; i++) fuAluLS.push_back(FunctionalUnit("LS" + std::to_string(i+1), LW_SW_CYCLES));
+	for (int i = 0; i < aluAdd; i++) fuAluAdd.push_back(FunctionalUnit("ADD" + std::to_string(i+1), latAdd));
+	for (int i = 0; i < aluMul; i++) fuAluMul.push_back(FunctionalUnit("MUL" + std::to_string(i+1), latMul));
+	for (int i = 0; i < aluLs; i++) fuAluLS.push_back(FunctionalUnit("LS" + std::to_string(i+1), latLs));
     for (int i = 0; i < MEMORY_SIZE; i++) memory.push_back((rand() % 7) + 1);
     for (int i = 0; i < rsAdd; i++) addStations.push_back(ReservationStation("rsAdd" + std::to_string(i+1)));
     for (int i = 0; i < rsMul; i++) mulStations.push_back(ReservationStation("rsMul" + std::to_string(i+1)));
@@ -261,17 +258,30 @@ void TomasuloSimulator::execute() {
         if (rs.busy && rs.Qj == 0 && rs.Qk == 0) {
             if (rs.op == LW) {
                 int lwAddr = rs.Vj + rs.A;
-                for (auto& entry : rob) {
-                    if (entry.tag == rs.destROB) break;
+                int lwIndex = rs.destROB;
+                int capacity = rob.size();
+                for (int steps = 1; steps <= capacity; ++steps) {
+                    int currIndex = (lwIndex - steps + capacity) % capacity;
+                    auto& entry = rob[currIndex];
+                    if (entry.state == COMMITTED) break;
                     if (entry.inst.op == SW) {
                         if (!entry.addressReady) return;
-                        if (entry.effectiveAddress == lwAddr) return;
+                        if (entry.effectiveAddress == lwAddr) {
+                            if (entry.ready) {
+                                rs.Vj = entry.value;
+                                rs.bypassMemory = true;
+                                Logger::log(Logger::DEBUG, "Bypass! Roubando valor " + std::to_string(entry.value) + " do ROB[" + std::to_string(currIndex) + "]");
+                                break;
+                            } else {
+                                return;
+                            }
+                        }
                     }
                 }
             }
             FunctionalUnit* freeFU = getFreeFU(alus);
             if (freeFU != nullptr) {
-                freeFU->dispatch(rs.op, rs.Vj, rs.Vk, rs.destROB, rs.A, rs.instruction);
+                freeFU->dispatch(rs.op, rs.Vj, rs.Vk, rs.destROB, rs.A, rs.instruction, rs.bypassMemory);
                 for (auto& entry : rob) {
                     if (entry.tag == freeFU->destTag) {
                         entry.state = EXECUTE;
@@ -301,12 +311,21 @@ void TomasuloSimulator::writeResult() {
     findReady(fuAluMul);
     findReady(fuAluLS);
     if (readyFUS.empty()) return;
+    int writesThisCycle = 0;
     for (FunctionalUnit* readyFU : readyFUS) {
+        if (writesThisCycle >= cdbWidth) {
+            Logger::log(currentCycle, Logger::DEBUG, "STALL ON CDB: " + readyFU->rawInstruction + " finalizou, mas o barramento esta lotado! Aguardando...");
+            break;
+        }
 		int finalBroadcastValue = readyFU->result;
         bool broadcastToCDB = true;
 		if (readyFU->op == LW) {
             int address = readyFU->result;
-            finalBroadcastValue = memory[address];
+		    if (readyFU->bypassMem) {
+		        finalBroadcastValue = address;
+		    } else {
+		        finalBroadcastValue = memory[address];
+		    }
         }
         else if (readyFU->op == SW) {
             broadcastToCDB = false;
@@ -348,6 +367,7 @@ void TomasuloSimulator::writeResult() {
                 " finalizou a operacao: " + readyFU->rawInstruction + " e agora aguarda no RoB.");
         }
         readyFU->clear();
+        writesThisCycle++;
     }
 }
 

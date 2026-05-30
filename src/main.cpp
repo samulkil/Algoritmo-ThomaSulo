@@ -10,7 +10,7 @@
 
 namespace fs = std::filesystem;
 
-void exibirMenu(int& rsAdd, int& rsMul, int& rsLs, int& aluAdd, int& aluMul, int& aluLs, int& issueWidth, std::string& filename) {
+void exibirMenu(int& rsAdd, int& rsMul, int& rsLs, int& aluAdd, int& aluMul, int& aluLs, int& cdbWidth, int& latAdd, int& latMul, int& latLs, std::string& filename) {
     std::string input;
     Logger::log(Logger::INFO, "========================================================");
     Logger::log(Logger::INFO, "             SIMULADOR TOMASULO");
@@ -33,9 +33,16 @@ void exibirMenu(int& rsAdd, int& rsMul, int& rsLs, int& aluAdd, int& aluMul, int
     Logger::log(Logger::INFO,"6. Unidades de Memoria LW/SW (Padrao: 1): ");
     Logger::log(Logger::INFO, ">>> ", false); std::getline(std::cin, input); if (!input.empty()) { try { aluLs = std::stoi(input); } catch (...) {} }
     Logger::log(Logger::INFO,"--- PIPELINE ---");
-    Logger::log(Logger::INFO,"7. Grau de Superescalaridade (Issue-N) (Padrao: 4): ");
-    Logger::log(Logger::INFO, ">>> ", false); std::getline(std::cin, input); if (!input.empty()) { try { issueWidth = std::stoi(input); } catch(...) {} }
-    Logger::log(Logger::INFO,"8. Selecione o arquivo de instrucoes:");
+    Logger::log(Logger::INFO,"7. Largura do Common Data Bus (CDB) (Padrao: 1): ");
+    Logger::log(Logger::INFO, ">>> ", false); std::getline(std::cin, input); if (!input.empty()) { try { cdbWidth = std::stoi(input); } catch(...) {} }
+    Logger::log(Logger::INFO,"--- LATENCIA DE EXECUCAO (Ciclos) ---");
+    Logger::log(Logger::INFO,"8. Ciclos para ADD/SUB (Padrao: 2): ");
+    Logger::log(Logger::INFO, ">>> ", false); std::getline(std::cin, input); if (!input.empty()) { try { latAdd = std::stoi(input); } catch (...) {} }
+    Logger::log(Logger::INFO,"9. Ciclos para MUL/DIV (Padrao: 10): ");
+    Logger::log(Logger::INFO, ">>> ", false); std::getline(std::cin, input); if (!input.empty()) { try { latMul = std::stoi(input); } catch (...) {} }
+    Logger::log(Logger::INFO,"10. Ciclos para LW/SW (Padrao: 3): ");
+    Logger::log(Logger::INFO, ">>> ", false); std::getline(std::cin, input); if (!input.empty()) { try { latLs = std::stoi(input); } catch (...) {} }
+    Logger::log(Logger::INFO,"11. Selecione o arquivo de instrucoes:");
     std::vector<std::string> txtFiles;
     std::string folderPath = "tests";
     if (fs::exists(folderPath) && fs::is_directory(folderPath)) {
@@ -82,9 +89,10 @@ void exibirMenu(int& rsAdd, int& rsMul, int& rsLs, int& aluAdd, int& aluMul, int
     Logger::log(Logger::INFO, "========================================================");
     Logger::log(Logger::INFO, "Inicializando simulacao com " + std::to_string(rsAdd) + " Estacoes ADD/SUB, " + std::to_string(rsMul)
         + " Estacoes MUL/DIV, " + std::to_string(rsLs) + " Estacoes LW/SW");
-    Logger::log(Logger::INFO, std::to_string(aluAdd) + " ALUs ADD/SUB, " + std::to_string(aluMul)
-        + " ALUs MUL/DIV, " + std::to_string(aluLs) + " ALUs LW/SW");
-    Logger::log(Logger::INFO, "Issue/Band/Commit Width: " + std::to_string(issueWidth));
+    Logger::log(Logger::INFO, std::to_string(aluAdd) + " ALUs ADD/SUB (Delay " + std::to_string(latAdd) + " ciclos), "
+        + std::to_string(aluMul) + " ALUs MUL/DIV (Delay " + std::to_string(latMul) + " ciclos), "
+        + std::to_string(aluLs) + " ALUs LW/SW (Delay " + std::to_string(latLs) + " ciclos)");
+    Logger::log(Logger::INFO, "CDB Width: " + std::to_string(cdbWidth));
     Logger::log(Logger::INFO, "Lendo instrucoes de: " + filename);
     Logger::log(Logger::INFO, "========================================================");
     Logger::log(Logger::INFO,"Pressione ENTER para executar.");
@@ -94,10 +102,10 @@ void exibirMenu(int& rsAdd, int& rsMul, int& rsLs, int& aluAdd, int& aluMul, int
 int main() {
     srand(42);
     try {
-        int rsAdd = 2, rsMul = 1, rsLs = 1, aluAdd = 2, aluMul = 1, aluLs = 1, issueWidth = 2;
+        int rsAdd = 2, rsMul = 1, rsLs = 1, aluAdd = 2, aluMul = 1, aluLs = 1, cdbWidth = 1, latAdd = 2, latMul = 10, latLs = 3;
         std::string filename = "cenario1.txt";
-        exibirMenu(rsAdd, rsMul, rsLs, aluAdd, aluMul, aluLs, issueWidth, filename);
-        TomasuloSimulator sim(rsAdd, rsMul, rsLs, aluAdd, aluMul, aluLs, issueWidth);
+        exibirMenu(rsAdd, rsMul, rsLs, aluAdd, aluMul, aluLs, cdbWidth, latAdd, latMul, latLs, filename);
+        TomasuloSimulator sim(rsAdd, rsMul, rsLs, aluAdd, aluMul, aluLs, cdbWidth, latAdd, latMul, latLs);
         sim.run(filename);
     } catch (const TomasuloException& e) {
         Logger::log(Logger::ERROR, e.what());
