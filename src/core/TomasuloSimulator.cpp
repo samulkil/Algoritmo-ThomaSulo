@@ -46,6 +46,37 @@ void TomasuloSimulator::printState() {
 	Logger::log(Logger::INFO, robHeaders.str());
 	if (!rob.empty()){
 		for(auto& entry : rob){
+			std::stringstream valueLine;
+			switch (entry.inst.op) {
+			    case LW: {
+			        int valueRegisterBase = rat.getProducer(entry.inst.srcRegister1);
+			        std::string baseRegStr;
+			        if (valueRegisterBase != -1 && entry.tag > valueRegisterBase) {
+			            baseRegStr = "#" + std::to_string(valueRegisterBase);
+			        } else {
+			            baseRegStr = "R" + std::to_string(entry.inst.srcRegister1);
+			        }
+			        valueLine << ("Mem[" + std::to_string(entry.inst.immediate) + " + " + baseRegStr + "]");
+			        break;
+			    }
+			    case SW: {
+			        int valueRegisterSW = rat.getProducer(entry.inst.destRegister);
+			        if (valueRegisterSW != -1 && entry.tag > valueRegisterSW) {
+			            valueLine << ("#" + std::to_string(valueRegisterSW));
+			        } else {
+			            valueLine << ("R" + std::to_string(entry.inst.destRegister));
+			        }
+			        break;
+			    }
+			    default: {
+			        int valueRegister1 = rat.getProducer(entry.inst.srcRegister1);
+			        int valueRegister2 = rat.getProducer(entry.inst.srcRegister2);
+			        std::string srcReg1 = valueRegister1 != -1 && entry.tag > valueRegister1 ? "#" + std::to_string(valueRegister1) : "R" + std::to_string(entry.inst.srcRegister1);
+			        std::string srcReg2 = valueRegister2 != -1 && entry.tag > valueRegister2 ? "#" + std::to_string(valueRegister2) : "R" + std::to_string(entry.inst.srcRegister2);
+			        valueLine << (srcReg1 + " " + entry.inst.getOperator() + " " + srcReg2);
+			        break;
+			    }
+			}
 		    std::string destination = entry.inst.op == SW ? "Mem[" + std::to_string(entry.inst.immediate) + " + R" + std::to_string(entry.inst.srcRegister1) + "]" : "R" + std::to_string(entry.destination);
 			robLine << std::left
 			    	<< std::setw(10) << std::to_string(entry.tag)
@@ -53,10 +84,12 @@ void TomasuloSimulator::printState() {
 			   		<< std::setw(20) << entry.inst.rawText
 					<< std::setw(18) << entry.getStateName()
 					<< std::setw(15) << destination
-					<< std::setw(10) << entry.valueLine;
+					<< std::setw(10) << valueLine.str();
 			Logger::log(Logger::INFO, robLine.str());
 	    	robLine.str("");
+			valueLine.str("");
         	robLine.clear();
+			valueLine.clear();
 		}
 	} else {
 		Logger::log(Logger::INFO, "");
@@ -109,15 +142,12 @@ void TomasuloSimulator::printState() {
     const int CHUNK_SIZE = 8;
     Logger::log(Logger::INFO, "------------------------- STATUS DOS REGISTRADORES -------------------------");
     for (int start = 0; start < 32; start += CHUNK_SIZE) {
-        std::stringstream headerLine, valueLine, producerLine, busyLine;
+        std::stringstream headerLine, producerLine, busyLine;
         headerLine << std::left << std::setw(12) << "Field";
-        valueLine << std::left << std::setw(12) << "Value";
         producerLine << std::left << std::setw(12) << "Reorder #";
         busyLine << std::left << std::setw(12) << "Busy";
         for (int i = start; i < start + CHUNK_SIZE && i < 32; i++) {
             headerLine << std::left << std::setw(8) << ("R" + std::to_string(i));
-            bool used = usedRegisters.count(i) > 0;
-            valueLine << std::left << std::setw(8) << (used ? std::to_string(registerFile.at(i)) : "-");
             int producer = rat.getProducer(i);
             if (producer != -1) {
                 producerLine << std::left << std::setw(8) << producer;
@@ -128,7 +158,6 @@ void TomasuloSimulator::printState() {
             }
         }
         Logger::log(Logger::INFO, headerLine.str());
-        Logger::log(Logger::INFO, valueLine.str());
         Logger::log(Logger::INFO, producerLine.str());
         Logger::log(Logger::INFO, busyLine.str());
         Logger::log(Logger::INFO, "----------------------------------------------------------------------------");
@@ -137,17 +166,6 @@ void TomasuloSimulator::printState() {
 
 void TomasuloSimulator::loadInstructionsFromFile(const std::string& filename) {
     instructionQueue = Parser::parseFile(filename);
-    usedRegisters.clear();
-    for (const auto& inst : instructionQueue) {
-        if (inst.type == TYPE_R) {
-            usedRegisters.insert(inst.destRegister);
-            usedRegisters.insert(inst.srcRegister1);
-            usedRegisters.insert(inst.srcRegister2);
-        } else {
-            usedRegisters.insert(inst.destRegister);
-            usedRegisters.insert(inst.srcRegister1);
-        }
-    }
 }
 
 void TomasuloSimulator::run(const std::string& filename) {
@@ -218,23 +236,12 @@ void TomasuloSimulator::issue() {
             else freeRS->Qk = 0;
             freeRS->A = inst.immediate;
         }
-        auto& robEntry = rob.back();
-        std::stringstream vl;
-        if (inst.op == LW) {
-            std::string base = (freeRS->Qj != 0) ? "#" + std::to_string(freeRS->Qj) : "R" + std::to_string(inst.srcRegister1);
-            vl << "Mem[" << inst.immediate << " + " << base << "]";
-        } else if (inst.op == SW) {
-            std::string src = (freeRS->Qk != 0) ? "#" + std::to_string(freeRS->Qk) : "R" + std::to_string(inst.destRegister);
-            vl << src;
-        } else {
-            std::string s1 = (freeRS->Qj != 0) ? "#" + std::to_string(freeRS->Qj) : "R" + std::to_string(inst.srcRegister1);
-            std::string s2 = (freeRS->Qk != 0) ? "#" + std::to_string(freeRS->Qk) : "R" + std::to_string(inst.srcRegister2);
-            vl << s1 << " " << inst.getOperator() << " " << s2;
-        }
-        robEntry.valueLine = vl.str();
-
         if (inst.op != SW) {
             rat.setProducer(inst.destRegister, myRobTag);
+        }
+        if (inst.op == SW && freeRS->Qj == 0) {
+            rob.back().effectiveAddress = freeRS->Vj + inst.immediate;
+            rob.back().addressReady = true;
         }
         Logger::log(currentCycle, Logger::DEBUG, "Nova instrucao: " + inst.rawText + " enviada para ReservationStation: " + freeRS->tag);
     }
@@ -252,6 +259,16 @@ void TomasuloSimulator::execute() {
     };
 	auto tryDispatch = [&](ReservationStation& rs, std::vector<FunctionalUnit>& alus) {
         if (rs.busy && rs.Qj == 0 && rs.Qk == 0) {
+            if (rs.op == LW) {
+                int lwAddr = rs.Vj + rs.A;
+                for (auto& entry : rob) {
+                    if (entry.tag == rs.destROB) break;
+                    if (entry.inst.op == SW) {
+                        if (!entry.addressReady) return;
+                        if (entry.effectiveAddress == lwAddr) return;
+                    }
+                }
+            }
             FunctionalUnit* freeFU = getFreeFU(alus);
             if (freeFU != nullptr) {
                 freeFU->dispatch(rs.op, rs.Vj, rs.Vk, rs.destROB, rs.A, rs.instruction);
@@ -298,8 +315,13 @@ void TomasuloSimulator::writeResult() {
             if (entry.tag == readyFU->destTag) {
                 entry.ready = true;
                 entry.state = WRITE_RESULT;
-                if (readyFU->op == SW) { entry.destination = readyFU->result; entry.value = readyFU->val2; }
-				else entry.value = finalBroadcastValue;
+                if (readyFU->op == SW) {
+                    entry.destination = readyFU->result;
+                    entry.value = readyFU->val2;
+                    entry.effectiveAddress = readyFU->result;
+                    entry.addressReady = true;
+                }
+                else entry.value = finalBroadcastValue;
                 break;
             }
         }

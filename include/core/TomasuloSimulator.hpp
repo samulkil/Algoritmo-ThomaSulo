@@ -2,7 +2,6 @@
 #define TOMASULO_SIMULATOR_HPP
 
 #include <deque>
-#include <set>
 #include <vector>
 #include <string>
 #include "Instruction.hpp"
@@ -30,7 +29,6 @@ private:
     std::vector<ReservationStation> loadStoreStations;
     std::deque<ReorderBufferEntry> rob;
     int robTagCounter = 1;
-    std::set<int> usedRegisters;
     void loadInstructionsFromFile(const std::string& filename);
     void issue();
     void execute();

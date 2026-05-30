@@ -7,7 +7,7 @@ ifeq ($(OS),Windows_NT)
     FIX_PATH = $(subst /,\,$(1))
     TARGET = main.exe
     # Comando para criar diretório se não existir (Windows)
-    CREATE_DIR = mkdir -p $(dir $@)
+    CREATE_DIR = if not exist "$(call FIX_PATH,$(dir $@))" $(MKDIR) "$(call FIX_PATH,$(dir $@))"
 else
     RM_DIR = rm -rf
     RM_FILE = rm -f

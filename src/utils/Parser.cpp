@@ -15,10 +15,12 @@ std::vector<Instruction> Parser::parseFile(const std::string& filename) {
     int instructionId = 1;
     while (std::getline(file, line)) {
         lineNumber++;
+        // checagem de comentario para remover
         size_t commentPos = line.find("//");
         if (commentPos != std::string::npos) {
             line = line.substr(0, commentPos);
         }
+        // limpando os espacos iniciais
         std::stringstream cleaner(line);
         std::string word;
         std::string cleanRaw = "";
@@ -27,10 +29,12 @@ std::vector<Instruction> Parser::parseFile(const std::string& filename) {
         }
         if (cleanRaw.empty()) continue;
         cleanRaw.pop_back();
+        // transformando virgulas em espacos
         std::string parsingLine = cleanRaw;
         std::replace(parsingLine.begin(), parsingLine.end(), ',', ' ');
         std::stringstream ss(parsingLine);
         std::string opStr, arg1, arg2, arg3;
+        // linha vazia
         if (!(ss >> opStr)) continue;
 
         Instruction inst;
